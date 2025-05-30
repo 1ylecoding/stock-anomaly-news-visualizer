@@ -2,213 +2,124 @@ import pandas as pd
 import plotly.graph_objects as go
 import json
 import os
+import webbrowser
 
-def generate_visualization(price_csv, news_json, ticker, z_anomalies=None, trend_anomalies=None, run_anomalies=None, extreme_anomalies=None):
-
-    # === Load and normalize column names ===
+def generate_visualization(price_csv, news_json, ticker,
+                           z_anomalies=None, trend_anomalies=None,
+                           run_anomalies=None, extreme_anomalies=None):
+    # Load and normalize data
     df = pd.read_csv(price_csv)
-    df["Date"] = pd.to_datetime(df["Date"], utc=True, errors="coerce")
     df = df.rename(columns={"Date": "date", "Close": "close"})
+    df["date"] = pd.to_datetime(df["date"], utc=True, errors="coerce")
     df["return"] = df["close"].pct_change()
     df["direction"] = df["return"].apply(lambda x: "up" if x > 0 else "down")
 
-    # === Load anomaly news ===
+    # Load news
     with open(news_json, "r") as f:
         news_by_date = json.load(f)
-
     df["date_str"] = df["date"].dt.strftime("%Y-%m-%d")
+    df["news"] = df["date_str"].map(lambda d: "<br>".join(news_by_date.get(d, [])))
 
-    df["z_dot"] = df["date_str"].isin(z_anomalies)
-    df["trend_dot"] = df["date_str"].isin(trend_anomalies)
-    df["run_dot"] = df["date_str"].isin(run_anomalies)
-    df["extreme_dot"] = df["date_str"].isin(extreme_anomalies if extreme_anomalies else [])
-    df["news"] = df["date"].dt.strftime("%Y-%m-%d").map(
-        lambda d: "<br>".join(news_by_date.get(d, [])) if news_by_date.get(d) else ""
-    )
+    # Flag anomalies
+    df["z_dot"] = df["date_str"].isin(z_anomalies or [])
+    df["trend_dot"] = df["date_str"].isin(trend_anomalies or [])
+    df["run_dot"] = df["date_str"].isin(run_anomalies or [])
+    df["extreme_dot"] = df["date_str"].isin(extreme_anomalies or [])
 
-    # === Segment line by gain/loss ===
+    # Plot line segments colored by direction
     colors = {"up": "limegreen", "down": "crimson"}
     segments = []
-
     for i in range(1, len(df)):
-        curr = df.iloc[i]
-        prev = df.iloc[i - 1]
+        prev, curr = df.iloc[i - 1], df.iloc[i]
         segments.append(go.Scatter(
             x=[prev["date"], curr["date"]],
             y=[prev["close"], curr["close"]],
             mode="lines",
             line=dict(color=colors[curr["direction"]], width=2),
-            hoverinfo="skip",
-            showlegend=False
+            hoverinfo="skip", showlegend=False
         ))
 
+    # Helper for anomaly dots
+    def make_dot(col, color, name, icon):
+        sel = df[df[col]]
+        return go.Scatter(
+            x=sel["date"], y=sel["close"], mode="markers",
+            marker=dict(size=12, color=color, line=dict(width=1, color="black")),
+            name=name, text=sel["news"],
+            hovertemplate=f"<b>{icon} {name}</b><br>%{{text}}<extra></extra>"
+        )
 
-    # === Add anomaly dots by type ===
-    dots_z = go.Scatter(
-        x=df[df["z_dot"]]["date"],
-        y=df[df["z_dot"]]["close"],
-        mode="markers",
-        marker=dict(size=10, color="yellow", line=dict(width=1, color="black")),
-        name="1-Day Spikes (Z-Score)",
-        text=df[df["z_dot"]]["news"],
-        hovertemplate="<b>📌 Z-Score Anomaly</b><br>%{text}<extra></extra>"
-    )
+    # Create dots, revert to goldenrod
+    dots = [
+        make_dot("z_dot", "goldenrod", "1-Day Spikes", "📌"),
+        make_dot("trend_dot", "dodgerblue", "5-Day Trend", "📈"),
+        make_dot("run_dot", "mediumorchid", "Run Anomaly", "🔥"),
+        make_dot("extreme_dot", "red", "Extreme Anomaly", "⚡")
+    ]
 
-    dots_trend = go.Scatter(
-        x=df[df["trend_dot"]]["date"],
-        y=df[df["trend_dot"]]["close"],
-        mode="markers",
-        marker=dict(size=10, color="dodgerblue", line=dict(width=1, color="black")),
-        name="5-Day Trend Anomaly",
-        text=df[df["trend_dot"]]["news"],
-        hovertemplate="<b>📈 Trend Anomaly</b><br>%{text}<extra></extra>"
-    )
-
-    dots_run = go.Scatter(
-        x=df[df["run_dot"]]["date"],
-        y=df[df["run_dot"]]["close"],
-        mode="markers",
-        marker=dict(size=10, color="mediumorchid", line=dict(width=1, color="black")),
-        name="Persistent Run Anomaly",
-        text=df[df["run_dot"]]["news"],
-        hovertemplate="<b>🔥 Run Anomaly</b><br>%{text}<extra></extra>"
-    )
-    
-    dots_extreme = go.Scatter(
-        x=df[df["extreme_dot"]]["date"],
-        y=df[df["extreme_dot"]]["close"],
-        mode="markers",
-        marker=dict(size=12, color="red", line=dict(width=1, color="black")),
-        name="Extreme 2-3 Day Anomaly",
-        text=df[df["extreme_dot"]]["news"],
-        hoverinfo="none"
-    )
-
-
-    # === Build chart ===
-    fig = go.Figure(segments + [dots_z, dots_trend, dots_run, dots_extreme])
+    # Build figure
+    fig = go.Figure(segments + dots)
     fig.update_layout(
-        title=f"📈 {ticker.upper()} Stock Price with Anomalies and News Headlines",
-        xaxis_title="Date",
-        yaxis_title="Close Price (USD)",
-        hovermode="closest",
-        template="plotly_dark",
-        font=dict(family="Arial", size=14),
-        margin=dict(l=40, r=40, t=80, b=40),
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        title=f"📈 {ticker.upper()} Price with Anomalies & News",
+        xaxis_title="Date", yaxis_title="Close Price",
+        hovermode="closest", template="plotly_dark",
+        font=dict(family="Arial", size=14), margin=dict(l=40, r=40, t=80, b=40),
+        # Force all hover labels to white text on dark background
+        hoverlabel=dict(
+            bgcolor="rgba(0,0,0,0.7)",
+            font_color="white"
+        )
     )
 
-    # === Show and export ===
-    fig.show()
-
+    # Prepare HTML export
     os.makedirs("plots", exist_ok=True)
     output_path = f"plots/{ticker.lower()}_anomaly_chart.html"
-    
-    # == custom html
-    custom_html = '''
-    <style>
-    #news-box a {
-        color: white;
-        text-decoration: none;
-    }
-    #news-box a:hover {
-        text-decoration: underline;
-    }
-    </style>
 
-    <div id="news-box" style="...">
-        ...
-    </div>
+    # JavaScript to append news box and handle clicks
+    post_script = '''
+    (function() {
+      var style = document.createElement('style');
+      style.innerHTML = '#news-box a { color: white !important; }';
+      document.head.appendChild(style);
 
-    <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const chart = document.querySelector(".plotly-graph-div");
-        let lastDate = null;
+      var box = document.createElement('div'); box.id = 'news-box';
+      Object.assign(box.style, {
+        position: 'fixed', top: '100px', right: '50px', width: '350px', padding: '12px',
+        background: '#222', color: 'white', fontFamily: 'sans-serif', fontSize: '14px',
+        border: '1px solid #444', borderRadius: '6px', zIndex: 1000, display: 'none',
+        boxShadow: '0 0 10px rgba(0,0,0,0.5)'
+      });
 
-        chart.on("plotly_click", function(data) {
-            const box = document.getElementById("news-box");
-            const content = document.getElementById("news-content");
+      var btn = document.createElement('button'); btn.textContent = '✖';
+      Object.assign(btn.style, {
+        background: 'none', border: 'none', color: 'white', fontSize: '16px', cursor: 'pointer', float: 'right'
+      });
+      btn.onclick = function() { box.style.display = 'none'; };
+      box.appendChild(btn);
 
-            // Extract date string (x axis value) from clicked point
-            const clickedDate = data.points[0].x;
-            const newsHTML = data.points[0].text;
+      var content = document.createElement('div'); content.id = 'news-content';
+      content.style.marginTop = '10px'; content.style.color = 'white';
+      box.appendChild(content);
+      document.body.appendChild(box);
 
-            if (box.style.display === "block" && clickedDate === lastDate) {
-                // Toggle off if the same dot was clicked again
-                box.style.display = "none";
-                lastDate = null;
-            } else {
-                // Show new content if a new dot was clicked
-                content.innerHTML = newsHTML;
-                box.style.display = "block";
-                lastDate = clickedDate;
-            }
+      var gd = document.querySelector('.plotly-graph-div');
+      if (gd && gd.on) {
+        gd.on('plotly_click', function(evt) {
+          var txt = evt.points[0].text || '';
+          content.innerHTML = txt;
+          box.style.display = 'block';
         });
-    });
-    </script>
-
+      }
+    })();
     '''
 
-    fig.write_html(output_path, include_plotlyjs="cdn", full_html=True, post_script=custom_html)
+    # Write HTML with embedded JS, auto-open
+    fig.write_html(
+        output_path,
+        include_plotlyjs=True,
+        full_html=True,
+        auto_open=True,
+        post_script=post_script
+    )
 
-    # === Save chart first
-    fig.write_html(output_path)
-
-# === Inject persistent floating news box with close button ===
-    with open(output_path, "r", encoding="utf-8") as f:
-        html = f.read()
-
-    injected = '''
-    <!-- Floating persistent news box -->
-    <div id="news-box" style="
-        position: fixed;
-        top: 100px;
-        right: 50px;
-        width: 350px;
-        padding: 12px;
-        background: #222;
-        color: white;
-        font-family: sans-serif;
-        font-size: 14px;
-        border: 1px solid #444;
-        border-radius: 6px;
-        z-index: 1000;
-        display: none;
-        box-shadow: 0 0 10px rgba(0,0,0,0.5);
-    ">
-        <div style="text-align: right;">
-            <button onclick="document.getElementById('news-box').style.display='none'" style="
-                background: none;
-                border: none;
-                color: white;
-                font-size: 16px;
-                cursor: pointer;
-            ">✖</button>
-        </div>
-        <div id="news-content" style="margin-top: 10px;"></div>
-    </div>
-
-    <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        let chart = document.querySelector(".plotly-graph-div");
-        if (chart) {
-            chart.on("plotly_click", function(data) {
-                let newsHTML = data.points[0].text;
-                let box = document.getElementById("news-box");
-                let content = document.getElementById("news-content");
-                if (box && content) {
-                    content.innerHTML = newsHTML;
-                    box.style.display = "block";
-                }
-            });
-        }
-    });
-    </script>
-    '''
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(html.replace("</body>", injected + "\n</body>"))
-
-
-
-    print(f"✅ Chart saved to {output_path}")
+    print(f"✅ Chart saved & opened: {output_path}")
