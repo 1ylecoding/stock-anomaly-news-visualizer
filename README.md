@@ -98,7 +98,7 @@ All detection parameters and thresholds live in `scripts/main.py` under the `con
 
 ## Examples
 
-![Chart Example]([plots/example_chart.png](https://imgur.com/a/xBNGpX6))
+![Chart Example]([plots/example_chart.png](https://imgur.com/a/xBNGpX6)
 
 1. **Hover** over a dot to see headlines.
 2. **Click** a dot to open the persistent news box.
