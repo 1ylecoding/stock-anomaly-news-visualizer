@@ -3,10 +3,10 @@ import json
 import pandas as pd
 import yfinance as yf
 
-from data_fetcher import fetch_and_save_stock_data
-from analyzer import detect_all_anomalies
-from newsapi_fetcher import get_newsapi_news
-from visualize import generate_visualization
+from scripts.data_fetcher import fetch_and_save_stock_data
+from scripts.analyzer import detect_all_anomalies
+from scripts.newsapi_fetcher import get_newsapi_news
+from scripts.visualize import generate_visualization
 
 def get_company_name(ticker):
     try:
@@ -14,17 +14,25 @@ def get_company_name(ticker):
     except:
         return ticker  # fallback
 
-def fetch_news_for_anomalies(ticker, dates, anomaly_type="default"):
-    company_name = get_company_name(ticker)
+from scripts.newsapi_fetcher import get_newsapi_news
+
+def fetch_news_for_anomalies(ticker, dates, api_key, anomaly_type="default"):
+    import yfinance as yf
+    try:
+        company_name = yf.Ticker(ticker).info.get("longName", ticker)
+    except:
+        company_name = ticker  # fallback
+
     news = {}
     for date in dates:
-        results = get_newsapi_news(query=company_name, date=date)
+        results = get_newsapi_news(query=company_name, date=date, api_key=api_key)
         link_color = "white"
         news[date] = [
             f"<a href='{a['url']}' target='_blank' style='color:{link_color}; text-decoration:none;'>{a['title']} ({a['source']})</a>"
             for a in results
         ] if results else ["No major headlines found."]
     return news
+
 
 def main():
     ticker = input("Enter the stock ticker (e.g., AAPL, MSFT, GOOGL): ").strip().upper()

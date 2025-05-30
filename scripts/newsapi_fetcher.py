@@ -1,14 +1,9 @@
-import os
 import requests
-from dotenv import load_dotenv
 
-load_dotenv()
-API_KEY = os.getenv("NEWSAPI_KEY")
-
-def get_newsapi_news(query, date):
+def get_newsapi_news(query, date, api_key):
     url = "https://api.thenewsapi.com/v1/news/all"
     params = {
-        "api_token": API_KEY,
+        "api_token": api_key,
         "search": query,
         "language": "en",
         "published_on": date,
