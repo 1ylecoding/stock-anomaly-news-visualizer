@@ -98,7 +98,7 @@ All detection parameters and thresholds live in `scripts/main.py` under the `con
 
 ## Examples
 
-![Chart Example](plots/example_chart.png)
+![Chart Example]([plots/example_chart.png](https://imgur.com/a/xBNGpX6))
 
 1. **Hover** over a dot to see headlines.
 2. **Click** a dot to open the persistent news box.
@@ -109,8 +109,6 @@ All detection parameters and thresholds live in `scripts/main.py` under the `con
 * Implement alternative news sources to handle rate limits
 * Add a CLI flag interface (via `argparse` or `click`)
 * Package as installable module with entry points
-
-## Contributing
 
 Contributions are welcome. Please open an issue or submit a pull request:
 
