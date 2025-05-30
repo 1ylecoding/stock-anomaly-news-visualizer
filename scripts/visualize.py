@@ -3,7 +3,7 @@ import plotly.graph_objects as go
 import json
 import os
 
-def generate_visualization(price_csv, news_json):
+def generate_visualization(price_csv, news_json, ticker, z_anomalies=None, trend_anomalies=None, run_anomalies=None):
     # === Load and normalize column names ===
     df = pd.read_csv(price_csv)
     df["Date"] = pd.to_datetime(df["Date"], utc=True, errors="coerce")
@@ -15,7 +15,12 @@ def generate_visualization(price_csv, news_json):
     with open(news_json, "r") as f:
         news_by_date = json.load(f)
 
-    df["is_anomaly"] = df["date"].dt.strftime("%Y-%m-%d").isin(news_by_date.keys())
+    df["date_str"] = df["date"].dt.strftime("%Y-%m-%d")
+
+    df["z_dot"] = df["date_str"].isin(z_anomalies)
+    df["trend_dot"] = df["date_str"].isin(trend_anomalies)
+    df["run_dot"] = df["date_str"].isin(run_anomalies)
+    
     df["news"] = df["date"].dt.strftime("%Y-%m-%d").map(
         lambda d: "<br>".join(news_by_date.get(d, [])) if news_by_date.get(d) else ""
     )
@@ -36,25 +41,40 @@ def generate_visualization(price_csv, news_json):
             showlegend=False
         ))
 
-    # === Add anomaly dots ===
-    anomalies = df[df["is_anomaly"]]
-    dots = go.Scatter(
-        x=anomalies["date"],
-        y=anomalies["close"],
+    # === Add anomaly dots by type ===
+    dots_z = go.Scatter(
+        x=df[df["z_dot"]]["date"],
+        y=df[df["z_dot"]]["close"],
         mode="markers",
-        marker=dict(
-            size=12,
-            color="gold",
-            line=dict(width=2, color="black"),
-            symbol="circle"
-        ),
-        name="Anomalies",
-        text=anomalies["news"],
-        hovertemplate="<b>📌 Anomaly Day</b><br>%{text}<extra></extra>"
+        marker=dict(size=10, color="yellow", line=dict(width=1, color="black")),
+        name="1-Day Spikes (Z-Score)",
+        text=df[df["z_dot"]]["news"],
+        hovertemplate="<b>📌 Z-Score Anomaly</b><br>%{text}<extra></extra>"
     )
 
+    dots_trend = go.Scatter(
+        x=df[df["trend_dot"]]["date"],
+        y=df[df["trend_dot"]]["close"],
+        mode="markers",
+        marker=dict(size=10, color="dodgerblue", line=dict(width=1, color="black")),
+        name="5-Day Trend Anomaly",
+        text=df[df["trend_dot"]]["news"],
+        hovertemplate="<b>📈 Trend Anomaly</b><br>%{text}<extra></extra>"
+    )
+
+    dots_run = go.Scatter(
+        x=df[df["run_dot"]]["date"],
+        y=df[df["run_dot"]]["close"],
+        mode="markers",
+        marker=dict(size=10, color="mediumorchid", line=dict(width=1, color="black")),
+        name="Persistent Run Anomaly",
+        text=df[df["run_dot"]]["news"],
+        hovertemplate="<b>🔥 Run Anomaly</b><br>%{text}<extra></extra>"
+    )
+
+
     # === Build chart ===
-    fig = go.Figure(segments + [dots])
+    fig = go.Figure(segments + [dots_z, dots_trend, dots_run])
     fig.update_layout(
         title="📈 AAPL Stock Price with Anomalies and News Headlines",
         xaxis_title="Date",

@@ -71,23 +71,27 @@ def detect_persistent_run_anomalies(df, min_days=7, min_total_return=0.10):
             curr_dir = None
 
         if curr_dir == direction:
-            total_return += daily_return
+            total_return *= (1 + daily_return)
         else:
             # Check if previous run qualifies
             if start_idx is not None:
                 run_length = i - start_idx
-                if run_length >= min_days and abs(total_return) > min_total_return:
-                    results.append(df.index[i - 1])  # flag end of the run
+                cumulative_return = total_return - 1.0
+                if run_length >= min_days and abs(cumulative_return) > min_total_return:
+                    results.append(df.index[i - 1])
 
             # Start new run
             start_idx = i - 1
-            total_return = daily_return
+            total_return = 1.0 * (1 + daily_return)  # initialize to 1 + first return
             direction = curr_dir
+
 
     # Final run check
     if start_idx is not None:
         run_length = len(df) - start_idx
-        if run_length >= min_days and abs(total_return) > min_total_return:
+        cumulative_return = total_return - 1.0
+        if run_length >= min_days and abs(cumulative_return) > min_total_return:
+
             results.append(df.index[-1])
 
     return pd.DataFrame({"PersistentAnomalyDate": pd.to_datetime(results)})

@@ -59,7 +59,14 @@ def main():
 
     # === Step 4: Visualize ===
     print("📊 Creating interactive chart...")
-    generate_visualization(f"data/{ticker}_history.csv", news_path)
+    generate_visualization(
+    price_csv=f"data/{ticker}_history.csv",
+    news_json=news_path,
+    ticker=ticker,
+    z_anomalies = pd.to_datetime(anomalies_df.index).strftime("%Y-%m-%d").tolist(),
+    trend_anomalies=trend_anomalies["AnomalyDate"].dt.strftime("%Y-%m-%d").tolist(),
+    run_anomalies=persistent_df["PersistentAnomalyDate"].dt.strftime("%Y-%m-%d").tolist()
+)
 
     print("✅ Done! Chart saved in /plots")
 
