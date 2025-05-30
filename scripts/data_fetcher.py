@@ -12,6 +12,7 @@ def fetch_and_save_stock_data(ticker: str, period="1y", interval="1d"):
 
     os.makedirs("../data", exist_ok=True)
     path = f"data/{ticker}_history.csv" 
+    os.makedirs("data", exist_ok=True)
     df.to_csv(path)
     print(f"Saved {ticker} data to {path}")
 

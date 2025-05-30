@@ -1,6 +1,16 @@
 import os
 import json
 import pandas as pd
+import yfinance as yf
+
+def get_company_name(ticker):
+    try:
+        return yf.Ticker(ticker).info.get("longName", ticker)
+    except:
+        return ticker  # fallback
+
+ticker = input("Enter the stock ticker (e.g., AAPL, MSFT, GOOGL): ").strip().upper()
+
 
 from data_fetcher import fetch_and_save_stock_data
 from analyzer import detect_anomalies_mad
@@ -8,15 +18,28 @@ from analyzer import detect_persistent_run_anomalies  # put this at the top
 from newsapi_fetcher import get_newsapi_news
 from visualize import generate_visualization
 
-def fetch_news_for_anomalies(ticker, dates):
+def fetch_news_for_anomalies(ticker, dates, anomaly_type="default"):
+    company_name = get_company_name(ticker)
     news = {}
     for date in dates:
-        results = get_newsapi_news(query="Apple Inc", date=date)
-        news[date] = [a["title"] for a in results] if results else []
+        results = get_newsapi_news(query=company_name, date=date)
+        if anomaly_type == "z":  # yellow dot
+            link_color = "black"
+        else:  # trend or persistent run
+            link_color = "white"
+
+        news[date] = [
+            f"<a href='{a['url']}' target='_blank' style='color:{link_color}; text-decoration:none;'>{a['title']} ({a['source']})</a>"
+            for a in results
+        ] if results else ["No major headlines found."]
+
+
     return news
 
+
+
 def main():
-    ticker = "AAPL"
+    #ticker = "AAPL"
     print(f"🚀 Starting full pipeline for {ticker}")
 
     # === Step 1: Fetch data ===
@@ -26,6 +49,7 @@ def main():
     # === Step 2: Detect anomalies ===
     print("🔍 Detecting anomalies...")
     anomalies_df = detect_anomalies_mad(ticker)
+    z_anomalies = pd.to_datetime(anomalies_df.index, utc=True).strftime("%Y-%m-%d").tolist()
 
     # FIXED: Ensure index is datetime before formatting
     anomaly_dates = pd.to_datetime(anomalies_df.index, utc=True).strftime("%Y-%m-%d").tolist()
@@ -40,17 +64,28 @@ def main():
     trend_anomalies = detect_rolling_trend_anomalies(df, window=5, threshold=0.12)
     trend_dates = trend_anomalies["AnomalyDate"].dt.strftime("%Y-%m-%d").tolist()
 
+
+
     persistent_df = detect_persistent_run_anomalies(df, min_days=7, min_total_return=0.10)
+    persistent_df["PersistentAnomalyDate"] = pd.to_datetime(persistent_df["PersistentAnomalyDate"], utc=True)
     persistent_dates = persistent_df["PersistentAnomalyDate"].dt.strftime("%Y-%m-%d").tolist()
 
     all_anomaly_dates = sorted(set(anomaly_dates + trend_dates + persistent_dates))  # new
 
     print("📊 Detecting persistent up/down runs...")
 
+    total_anomalies = len(anomalies_df) + len(trend_anomalies) + len(persistent_df)
+    print(f"✅ Saved {total_anomalies} total anomalies to data/{ticker}_*.csv")
 
     # === Step 3: Fetch news ===
     print("📰 Fetching news for anomalies...")
-    news_by_date = fetch_news_for_anomalies(ticker, all_anomaly_dates)  
+    #news_by_date = fetch_news_for_anomalies(ticker, all_anomaly_dates)  
+    news_z = fetch_news_for_anomalies(ticker, z_anomalies, anomaly_type="z")
+    news_trend = fetch_news_for_anomalies(ticker, trend_dates, anomaly_type="trend")
+    news_run = fetch_news_for_anomalies(ticker, persistent_dates, anomaly_type="run")
+
+# ✅ Combine all into one dictionary
+    news_by_date = {**news_z, **news_trend, **news_run}
 
     news_path = f"data/{ticker}_news.json"
     with open(news_path, "w") as f:
@@ -63,7 +98,7 @@ def main():
     price_csv=f"data/{ticker}_history.csv",
     news_json=news_path,
     ticker=ticker,
-    z_anomalies = pd.to_datetime(anomalies_df.index).strftime("%Y-%m-%d").tolist(),
+    z_anomalies = pd.to_datetime(anomalies_df.index, utc=True).strftime("%Y-%m-%d").tolist(),
     trend_anomalies=trend_anomalies["AnomalyDate"].dt.strftime("%Y-%m-%d").tolist(),
     run_anomalies=persistent_df["PersistentAnomalyDate"].dt.strftime("%Y-%m-%d").tolist()
 )

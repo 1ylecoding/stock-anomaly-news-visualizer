@@ -10,7 +10,7 @@ def modified_z_score(x):
     return 0.6745 * (x - median) / mad
 
 def detect_anomalies_mad(ticker: str, threshold: float = 3.5):
-    path = f"../data/{ticker}_history.csv"
+    path = f"data/{ticker}_history.csv"
     if not os.path.exists(path):
         raise FileNotFoundError(f"No data file found for {ticker} at {path}")
 
@@ -29,72 +29,59 @@ def detect_anomalies_mad(ticker: str, threshold: float = 3.5):
     anomalies = anomalies[["Close", "Return", "ModifiedZ"]]
 
     anomalies.to_csv(f"../data/{ticker}_anomalies.csv")
-    print(f"Saved {len(anomalies)} anomalies to ../data/{ticker}_anomalies.csv")
 
     return anomalies
 
 def detect_rolling_trend_anomalies(df, window=5, threshold=0.12):
+    df = df.copy()
     df["RollingReturn"] = df["Close"].pct_change(periods=window)
     df["RollingAnomaly"] = df["RollingReturn"].abs() > threshold
 
-    # Shift index forward so anomaly is assigned to the *end* of the window
+    # Assign anomaly to end of window
     df["AnomalyDate"] = df.index
     df["AnomalyDate"] = df["AnomalyDate"].shift(-window)
 
-    trend_anomalies = df[df["RollingAnomaly"]].copy()
-    trend_anomalies = trend_anomalies.dropna(subset=["AnomalyDate"])
-    trend_anomalies["AnomalyDate"] = pd.to_datetime(trend_anomalies["AnomalyDate"], utc=True)
+    anomalies = df[df["RollingAnomaly"]].dropna(subset=["AnomalyDate"]).copy()
 
-    return trend_anomalies
+    # ✅ Collapse anomalies within `window` days
+    grouped = []
+    last_date = None
+    for date in anomalies["AnomalyDate"]:
+        if last_date is None or (date - last_date).days >= window:
+            grouped.append(date)
+        last_date = date
+
+    collapsed = anomalies[anomalies["AnomalyDate"].isin(grouped)].copy()
+
+    # ✅ Convert AnomalyDate to datetime explicitly
+    collapsed["AnomalyDate"] = pd.to_datetime(collapsed["AnomalyDate"], utc=True)
+
+    return collapsed
+
+
 
 def detect_persistent_run_anomalies(df, min_days=7, min_total_return=0.10):
-    """
-    Detects long uninterrupted up or down runs and flags end of run as anomaly.
-    E.g., 7+ consecutive up days, total gain > 10%
-    """
     df = df.copy()
     df["Return"] = df["Close"].pct_change()
+    df["CumulativeReturn"] = (1 + df["Return"]).rolling(window=min_days).apply(lambda x: x.prod() - 1, raw=True)
+    df["PersistentAnomaly"] = df["CumulativeReturn"].abs() > min_total_return
 
-    results = []
-    start_idx = None
-    direction = None
-    total_return = 0
+    # Keep only anomaly dates
+    anomalies = df[df["PersistentAnomaly"]].copy()
+    anomalies = anomalies.dropna(subset=["CumulativeReturn"])
+    anomalies["PersistentAnomalyDate"] = anomalies.index
 
-    for i in range(1, len(df)):
-        daily_return = df.iloc[i]["Return"]
+    # ✅ Collapse anomalies within 7 days into a single one
+    grouped = []
+    last_date = None
+    for date in anomalies["PersistentAnomalyDate"]:
+        if last_date is None or (date - last_date).days >= min_days:
+            grouped.append(date)
+        last_date = date
 
-        if daily_return > 0:
-            curr_dir = "up"
-        elif daily_return < 0:
-            curr_dir = "down"
-        else:
-            curr_dir = None
+    result = anomalies[anomalies["PersistentAnomalyDate"].isin(grouped)]
+    return result[["PersistentAnomalyDate", "CumulativeReturn"]]
 
-        if curr_dir == direction:
-            total_return *= (1 + daily_return)
-        else:
-            # Check if previous run qualifies
-            if start_idx is not None:
-                run_length = i - start_idx
-                cumulative_return = total_return - 1.0
-                if run_length >= min_days and abs(cumulative_return) > min_total_return:
-                    results.append(df.index[i - 1])
-
-            # Start new run
-            start_idx = i - 1
-            total_return = 1.0 * (1 + daily_return)  # initialize to 1 + first return
-            direction = curr_dir
-
-
-    # Final run check
-    if start_idx is not None:
-        run_length = len(df) - start_idx
-        cumulative_return = total_return - 1.0
-        if run_length >= min_days and abs(cumulative_return) > min_total_return:
-
-            results.append(df.index[-1])
-
-    return pd.DataFrame({"PersistentAnomalyDate": pd.to_datetime(results)})
 
 
 # Example usage

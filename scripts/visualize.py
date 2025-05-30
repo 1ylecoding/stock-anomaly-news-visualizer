@@ -4,6 +4,7 @@ import json
 import os
 
 def generate_visualization(price_csv, news_json, ticker, z_anomalies=None, trend_anomalies=None, run_anomalies=None):
+
     # === Load and normalize column names ===
     df = pd.read_csv(price_csv)
     df["Date"] = pd.to_datetime(df["Date"], utc=True, errors="coerce")
@@ -41,6 +42,7 @@ def generate_visualization(price_csv, news_json, ticker, z_anomalies=None, trend
             showlegend=False
         ))
 
+
     # === Add anomaly dots by type ===
     dots_z = go.Scatter(
         x=df[df["z_dot"]]["date"],
@@ -76,20 +78,105 @@ def generate_visualization(price_csv, news_json, ticker, z_anomalies=None, trend
     # === Build chart ===
     fig = go.Figure(segments + [dots_z, dots_trend, dots_run])
     fig.update_layout(
-        title="📈 AAPL Stock Price with Anomalies and News Headlines",
+        title=f"📈 {ticker.upper()} Stock Price with Anomalies and News Headlines",
         xaxis_title="Date",
         yaxis_title="Close Price (USD)",
         hovermode="closest",
         template="plotly_dark",
         font=dict(family="Arial", size=14),
         margin=dict(l=40, r=40, t=80, b=40),
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
     )
 
     # === Show and export ===
     fig.show()
 
     os.makedirs("plots", exist_ok=True)
-    output_path = "plots/aapl_anomaly_chart.html"
+    output_path = f"plots/{ticker.lower()}_anomaly_chart.html"
+    
+    # == custom html
+    custom_html = '''
+    <style>
+    #news-box a {
+        color: white;
+        text-decoration: none;
+    }
+    #news-box a:hover {
+        text-decoration: underline;
+    }
+    </style>
+
+    <div id="news-box" style="...">
+        ...
+    </div>
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        ...
+    });
+    </script>
+    '''
+
+    fig.write_html(output_path, include_plotlyjs="cdn", full_html=True, post_script=custom_html)
+
+    # === Save chart first
     fig.write_html(output_path)
+
+# === Inject persistent floating news box with close button ===
+    with open(output_path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    injected = '''
+    <!-- Floating persistent news box -->
+    <div id="news-box" style="
+        position: fixed;
+        top: 100px;
+        right: 50px;
+        width: 350px;
+        padding: 12px;
+        background: #222;
+        color: white;
+        font-family: sans-serif;
+        font-size: 14px;
+        border: 1px solid #444;
+        border-radius: 6px;
+        z-index: 1000;
+        display: none;
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    ">
+        <div style="text-align: right;">
+            <button onclick="document.getElementById('news-box').style.display='none'" style="
+                background: none;
+                border: none;
+                color: white;
+                font-size: 16px;
+                cursor: pointer;
+            ">✖</button>
+        </div>
+        <div id="news-content" style="margin-top: 10px;"></div>
+    </div>
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        let chart = document.querySelector(".plotly-graph-div");
+        if (chart) {
+            chart.on("plotly_click", function(data) {
+                let newsHTML = data.points[0].text;
+                let box = document.getElementById("news-box");
+                let content = document.getElementById("news-content");
+                if (box && content) {
+                    content.innerHTML = newsHTML;
+                    box.style.display = "block";
+                }
+            });
+        }
+    });
+    </script>
+    '''
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(html.replace("</body>", injected + "\n</body>"))
+
+
+
     print(f"✅ Chart saved to {output_path}")
