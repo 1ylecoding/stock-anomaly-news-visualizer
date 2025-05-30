@@ -66,13 +66,19 @@ def main():
 
 
 
-    persistent_df = detect_persistent_run_anomalies(df, min_days=7, min_total_return=0.10)
-    persistent_df["PersistentAnomalyDate"] = pd.to_datetime(persistent_df["PersistentAnomalyDate"], utc=True)
-    persistent_dates = persistent_df["PersistentAnomalyDate"].dt.strftime("%Y-%m-%d").tolist()
+    print("📊 Detecting persistent up/down runs...")
+    persistent_df = detect_persistent_run_anomalies(df, min_days=7, min_total_return=0.05)
+    print("Persistent run anomaly columns:", persistent_df.columns)
+    print(persistent_df.head())
+
+    if not persistent_df.empty:
+        persistent_df["start_date"] = pd.to_datetime(persistent_df["start_date"], utc=True)
+        persistent_dates = persistent_df["start_date"].dt.strftime("%Y-%m-%d").tolist()
+    else:
+        persistent_dates = []
 
     all_anomaly_dates = sorted(set(anomaly_dates + trend_dates + persistent_dates))  # new
 
-    print("📊 Detecting persistent up/down runs...")
 
     total_anomalies = len(anomalies_df) + len(trend_anomalies) + len(persistent_df)
     print(f"✅ Saved {total_anomalies} total anomalies to data/{ticker}_*.csv")
@@ -100,7 +106,7 @@ def main():
     ticker=ticker,
     z_anomalies = pd.to_datetime(anomalies_df.index, utc=True).strftime("%Y-%m-%d").tolist(),
     trend_anomalies=trend_anomalies["AnomalyDate"].dt.strftime("%Y-%m-%d").tolist(),
-    run_anomalies=persistent_df["PersistentAnomalyDate"].dt.strftime("%Y-%m-%d").tolist()
+    run_anomalies = persistent_df["start_date"].dt.strftime("%Y-%m-%d").tolist()
 )
 
     print("✅ Done! Chart saved in /plots")

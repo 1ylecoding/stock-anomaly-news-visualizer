@@ -112,9 +112,31 @@ def generate_visualization(price_csv, news_json, ticker, z_anomalies=None, trend
 
     <script>
     document.addEventListener("DOMContentLoaded", function () {
-        ...
+        const chart = document.querySelector(".plotly-graph-div");
+        let lastDate = null;
+
+        chart.on("plotly_click", function(data) {
+            const box = document.getElementById("news-box");
+            const content = document.getElementById("news-content");
+
+            // Extract date string (x axis value) from clicked point
+            const clickedDate = data.points[0].x;
+            const newsHTML = data.points[0].text;
+
+            if (box.style.display === "block" && clickedDate === lastDate) {
+                // Toggle off if the same dot was clicked again
+                box.style.display = "none";
+                lastDate = null;
+            } else {
+                // Show new content if a new dot was clicked
+                content.innerHTML = newsHTML;
+                box.style.display = "block";
+                lastDate = clickedDate;
+            }
+        });
     });
     </script>
+
     '''
 
     fig.write_html(output_path, include_plotlyjs="cdn", full_html=True, post_script=custom_html)
