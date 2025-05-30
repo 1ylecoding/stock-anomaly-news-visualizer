@@ -19,7 +19,6 @@ def fetch_news_for_anomalies(ticker, dates, anomaly_type="default"):
     news = {}
     for date in dates:
         results = get_newsapi_news(query=company_name, date=date)
-        # style links: black for z-score (yellow dots), white otherwise
         link_color = "white"
         news[date] = [
             f"<a href='{a['url']}' target='_blank' style='color:{link_color}; text-decoration:none;'>{a['title']} ({a['source']})</a>"
@@ -30,7 +29,7 @@ def fetch_news_for_anomalies(ticker, dates, anomaly_type="default"):
 def main():
     ticker = input("Enter the stock ticker (e.g., AAPL, MSFT, GOOGL): ").strip().upper()
     print(f"🚀 Starting full pipeline for {ticker}")
-# === NEW: Prompt for anomaly thresholds ===
+# anomaly thresholds
     print("Configure anomaly thresholds (press Enter for default):")
     mad_input        = input(" • 1-day z-score threshold [default 2.5]: ").strip()
     rolling_input    = input(" • 5-day z-score threshold [default 2.0]: ").strip()
@@ -52,7 +51,7 @@ def main():
         "persistent_threshold": persistent_threshold,
     }
 
-    # === Step 1: Fetch data ===
+    ##### Step 1: Fetch data
     print("📥 Fetching stock data...")
     fetch_and_save_stock_data(ticker)
 
@@ -64,11 +63,11 @@ def main():
     anomalies = detect_all_anomalies(df, config=config)
 
 
-    # === Step 2: Detect anomalies (unified) ===
+    ##### Step 2: Detect anomalies (unified)
     print("🔍 Detecting anomalies...")
     anomalies = detect_all_anomalies(df, config=config)
 
-    # === Step 5: Extract anomaly date lists ===
+    # Extract anomaly date lists
     # 1-day MAD anomalies
     anomalies_df = anomalies["mad"]
     anomaly_dates = pd.to_datetime(anomalies_df.index, utc=True).strftime("%Y-%m-%d").tolist()
@@ -101,7 +100,7 @@ def main():
     )
     print(f"✅ Detected {total_anomalies} total anomalies")
 
-    # === Step 6: Combine dates & fetch news ===
+    ###### Step 6: Combine dates & fetch news
     print("📰 Fetching news for anomalies...")
     all_anomaly_dates = sorted(set(anomaly_dates + trend_dates + extreme_dates + persistent_dates))
 
@@ -116,7 +115,7 @@ def main():
         json.dump(news_by_date, f, indent=2)
     print(f"✅ News saved to {news_path}")
 
-    # === Step 4: Visualize ===
+    ##### Step 7: Visualize
     print("📊 Creating interactive chart...")
     generate_visualization(
         price_csv=f"data/{ticker}_history.csv",

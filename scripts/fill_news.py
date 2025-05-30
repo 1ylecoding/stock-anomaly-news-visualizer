@@ -2,7 +2,7 @@ import json
 from newsapi_fetcher import get_newsapi_news  # Make sure this works
 from tqdm import tqdm
 
-# Load your existing file
+# Load existing file
 with open("data/AAPL_news.json", "r") as f:
     news_by_date = json.load(f)
 
@@ -22,4 +22,3 @@ with open("data/AAPL_news.json", "w") as f:
     json.dump(news_by_date, f, indent=2)
 
 print("✅ News headlines added to AAPL_news.json")
-    

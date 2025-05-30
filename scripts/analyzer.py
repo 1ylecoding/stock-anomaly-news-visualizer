@@ -146,7 +146,7 @@ def detect_extreme_multi_day_anomalies(
     # 3) find all anomaly dates
     all_dates = rolling.index[np.abs(z) > threshold]
 
-    # 4) prune dates so they're at least min_gap_days apart
+    # 4) prune dates so at least min_gap_days apart
     pruned = []
     last = None
     for d in sorted(all_dates):
@@ -161,12 +161,10 @@ def detect_extreme_multi_day_anomalies(
         "ModifiedZ":       [z[list(all_dates).index(d)] for d in pruned]
     })
 
-    # 6) drop timezone info (so downstream .astype or plotting never blows up)
-    #    if these timestamps happen to be tz-aware, this makes them naive.
+    # 6) drop timezone info
     try:
         anomalies["AnomalyDate"] = anomalies["AnomalyDate"].dt.tz_localize(None)
     except (AttributeError, ValueError):
-        # already naive or can't localize—ignore
         pass
 
     return anomalies
