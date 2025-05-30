@@ -2,6 +2,8 @@
 
 This tool is a Python-based research assistant for capital markets. It analyses one year of daily stock prices, detects statistically significant price anomalies, and links each event to top news headlines. Interactive visualizations help you explore price spikes, dips, trends, and persistent runs alongside their real-world drivers.
 
+https://stock-anomaly-news-viz.streamlit.app/
+
 ## Key Features
 
 * **Dynamic Anomaly Detection**
