@@ -1,0 +1,19 @@
+{
+  "2024-11-18": [
+    {
+      "type": "mad",
+      "headlines": [
+        { "title": "Apple spikes after earnings", "url": "https://example.com/aapl1" }
+      ]
+    }
+  ],
+  "2024-12-01": [
+    {
+      "type": "persistent",
+      "description": "9-day uptrend (+14%)",
+      "headlines": [
+        { "title": "Sustained bullish momentum", "url": "https://example.com/aapl2" }
+      ]
+    }
+  ]
+}
