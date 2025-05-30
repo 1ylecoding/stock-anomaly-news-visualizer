@@ -14,7 +14,9 @@ ticker = input("Enter the stock ticker (e.g., AAPL, MSFT, GOOGL): ").strip().upp
 
 from data_fetcher import fetch_and_save_stock_data
 from analyzer import detect_anomalies_mad
-from analyzer import detect_persistent_run_anomalies  # put this at the top
+from analyzer import detect_persistent_run_anomalies
+from analyzer import detect_extreme_multi_day_anomalies
+# put this at the top
 from newsapi_fetcher import get_newsapi_news
 from visualize import generate_visualization
 
@@ -64,6 +66,10 @@ def main():
     trend_anomalies = detect_rolling_trend_anomalies(df, window=5, threshold=0.12)
     trend_dates = trend_anomalies["AnomalyDate"].dt.strftime("%Y-%m-%d").tolist()
 
+    extreme_anomalies = detect_extreme_multi_day_anomalies(df, window=3, threshold=0.20)
+    extreme_anomalies["AnomalyDate"] = pd.to_datetime(extreme_anomalies["AnomalyDate"], utc=True)
+    extreme_dates = extreme_anomalies["AnomalyDate"].dt.strftime("%Y-%m-%d").tolist()
+
 
 
     print("📊 Detecting persistent up/down runs...")
@@ -77,10 +83,12 @@ def main():
     else:
         persistent_dates = []
 
-    all_anomaly_dates = sorted(set(anomaly_dates + trend_dates + persistent_dates))  # new
+    
 
 
     total_anomalies = len(anomalies_df) + len(trend_anomalies) + len(persistent_df)
+    
+    
     print(f"✅ Saved {total_anomalies} total anomalies to data/{ticker}_*.csv")
 
     # === Step 3: Fetch news ===
@@ -89,9 +97,11 @@ def main():
     news_z = fetch_news_for_anomalies(ticker, z_anomalies, anomaly_type="z")
     news_trend = fetch_news_for_anomalies(ticker, trend_dates, anomaly_type="trend")
     news_run = fetch_news_for_anomalies(ticker, persistent_dates, anomaly_type="run")
+    news_extreme = fetch_news_for_anomalies(ticker, extreme_dates, anomaly_type="extreme")
 
 # ✅ Combine all into one dictionary
-    news_by_date = {**news_z, **news_trend, **news_run}
+    all_anomaly_dates = sorted(set(anomaly_dates + trend_dates + persistent_dates + extreme_dates))
+    news_by_date = {**news_z, **news_trend, **news_run, **news_extreme}
 
     news_path = f"data/{ticker}_news.json"
     with open(news_path, "w") as f:
@@ -101,12 +111,13 @@ def main():
     # === Step 4: Visualize ===
     print("📊 Creating interactive chart...")
     generate_visualization(
-    price_csv=f"data/{ticker}_history.csv",
-    news_json=news_path,
-    ticker=ticker,
-    z_anomalies = pd.to_datetime(anomalies_df.index, utc=True).strftime("%Y-%m-%d").tolist(),
-    trend_anomalies=trend_anomalies["AnomalyDate"].dt.strftime("%Y-%m-%d").tolist(),
-    run_anomalies = persistent_df["start_date"].dt.strftime("%Y-%m-%d").tolist()
+        price_csv=f"data/{ticker}_history.csv",
+        news_json=news_path,
+        ticker=ticker,
+        z_anomalies = pd.to_datetime(anomalies_df.index, utc=True).strftime("%Y-%m-%d").tolist(),
+        trend_anomalies=trend_anomalies["AnomalyDate"].dt.strftime("%Y-%m-%d").tolist(),
+        run_anomalies = persistent_df["start_date"].dt.strftime("%Y-%m-%d").tolist(),
+        extreme_anomalies=extreme_dates
 )
 
     print("✅ Done! Chart saved in /plots")

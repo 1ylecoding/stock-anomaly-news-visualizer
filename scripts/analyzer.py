@@ -58,6 +58,24 @@ def detect_rolling_trend_anomalies(df, window=5, threshold=0.12):
 
     return collapsed
 
+def detect_extreme_multi_day_anomalies(df, window=3, threshold=0.10):
+    """
+    Detects extreme price moves over a 2-3 day window exceeding the threshold.
+    """
+    df = df.copy()
+    df["Return"] = df["Close"].pct_change()
+    
+    # Calculate rolling compounded return over the window
+    df["RollingReturn"] = (1 + df["Return"]).rolling(window=window).apply(lambda x: x.prod() - 1, raw=True)
+    
+    # Flag anomalies exceeding threshold
+    df["ExtremeAnomaly"] = df["RollingReturn"].abs() > threshold
+    
+    # Extract dates where anomalies occur (end of rolling window)
+    anomalies = df[df["ExtremeAnomaly"]].copy()
+    anomalies["AnomalyDate"] = anomalies.index
+    
+    return anomalies[["AnomalyDate", "RollingReturn"]]
 
 
 def detect_persistent_run_anomalies(df, min_days=7, min_total_return=0.05):

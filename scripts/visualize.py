@@ -3,7 +3,7 @@ import plotly.graph_objects as go
 import json
 import os
 
-def generate_visualization(price_csv, news_json, ticker, z_anomalies=None, trend_anomalies=None, run_anomalies=None):
+def generate_visualization(price_csv, news_json, ticker, z_anomalies=None, trend_anomalies=None, run_anomalies=None, extreme_anomalies=None):
 
     # === Load and normalize column names ===
     df = pd.read_csv(price_csv)
@@ -21,7 +21,7 @@ def generate_visualization(price_csv, news_json, ticker, z_anomalies=None, trend
     df["z_dot"] = df["date_str"].isin(z_anomalies)
     df["trend_dot"] = df["date_str"].isin(trend_anomalies)
     df["run_dot"] = df["date_str"].isin(run_anomalies)
-    
+    df["extreme_dot"] = df["date_str"].isin(extreme_anomalies if extreme_anomalies else [])
     df["news"] = df["date"].dt.strftime("%Y-%m-%d").map(
         lambda d: "<br>".join(news_by_date.get(d, [])) if news_by_date.get(d) else ""
     )
@@ -73,10 +73,20 @@ def generate_visualization(price_csv, news_json, ticker, z_anomalies=None, trend
         text=df[df["run_dot"]]["news"],
         hovertemplate="<b>🔥 Run Anomaly</b><br>%{text}<extra></extra>"
     )
+    
+    dots_extreme = go.Scatter(
+        x=df[df["extreme_dot"]]["date"],
+        y=df[df["extreme_dot"]]["close"],
+        mode="markers",
+        marker=dict(size=12, color="red", line=dict(width=1, color="black")),
+        name="Extreme 2-3 Day Anomaly",
+        text=df[df["extreme_dot"]]["news"],
+        hoverinfo="none"
+    )
 
 
     # === Build chart ===
-    fig = go.Figure(segments + [dots_z, dots_trend, dots_run])
+    fig = go.Figure(segments + [dots_z, dots_trend, dots_run, dots_extreme])
     fig.update_layout(
         title=f"📈 {ticker.upper()} Stock Price with Anomalies and News Headlines",
         xaxis_title="Date",
